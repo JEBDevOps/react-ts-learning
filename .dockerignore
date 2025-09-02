@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.gitignore
+Dockerfile
+README.md
+eslint.config.js
+vite.config.ts
+tsconfig.json
+tsconfig.app.json
+tsconfig.node.json
