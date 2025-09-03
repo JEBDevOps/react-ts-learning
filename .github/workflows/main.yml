@@ -84,5 +84,5 @@ jobs:
           aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploying new image $IMAGE_URI" \
+            --comment "Deploying image tag: $IMAGE_TAG" \
             --parameters file://parameters.json
