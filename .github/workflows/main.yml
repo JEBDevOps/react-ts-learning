@@ -13,7 +13,7 @@ jobs:
       id-token: write
       contents: read
     outputs:
-      image_uri: ${{ steps.build-image.outputs.image_uri }}
+      image_tag: ${{ steps.build-image.outputs.image_tag }}
 
     steps:
       - name: Check out the repo
@@ -38,7 +38,7 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   deploy-to-ec2:
     name: Deploy to EC2 via SSM Run Command
@@ -57,13 +57,13 @@ jobs:
 
       - name: Send deployment command to EC2 instance
         env:
-          IMAGE_URI: ${{ needs.build-and-push-image.outputs.image_uri }}
+          IMAGE_TAG: ${{ needs.build-and-push-image.outputs.image_tag }}
         run: |
-          aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Deploying new image $IMAGE_URI" \
-            --parameters '{"commands":[
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/react-ts-app:$IMAGE_TAG"
+
+          cat > parameters.json <<EOF
+          {
+            "commands": [
               "# --- Deployment Script for my-app ---",
               "# 1. Login to ECR using the EC2 instance role",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
@@ -77,4 +77,12 @@ jobs:
               "",
               "# 4. Run the new container with the updated image",
               "docker run -d --name react-ts-app --restart always -p 80:80 \"$IMAGE_URI\""
-            ]}'
+            ]
+          }
+          EOF
+
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploying new image $IMAGE_URI" \
+            --parameters file://parameters.json
